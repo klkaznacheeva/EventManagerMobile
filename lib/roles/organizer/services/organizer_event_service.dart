@@ -2,7 +2,6 @@ import 'package:event_manager_app/core/config/api_config.dart';
 import 'package:event_manager_app/core/network/api_client.dart';
 import 'package:event_manager_app/features/events/models/event_model.dart';
 import 'package:event_manager_app/roles/organizer/models/organizer_event_create_request.dart';
-import 'package:http/http.dart';
 
 class OrganizerEventService {
   final ApiClient _apiClient;
@@ -20,11 +19,11 @@ class OrganizerEventService {
 
   Future<EventModel> updateEvent({
     required String eventId,
-    required Map<String, dynamic> body,
+    required OrganizerEventCreateRequest request,
   }) async {
     final response = await _apiClient.put(
       '${ApiConfig.events}$eventId',
-      body: body,
+      body: request.toJson(),
     );
 
     return EventModel.fromJson(response);
@@ -34,17 +33,19 @@ class OrganizerEventService {
     required String eventId,
     required EventModel event,
   }) async {
+    final request = OrganizerEventCreateRequest(
+      title: event.title,
+      description: event.description,
+      categoryId: event.categoryId ?? '',
+      startDate: event.startDate,
+      endDate: event.endDate,
+      location: event.location,
+      status: 'pending',
+    );
+
     return updateEvent(
       eventId: eventId,
-      body: {
-        'title': event.title,
-        'description': event.description,
-        'category_id': event.categoryId,
-        'start_date': event.startDate,
-        'end_date': event.endDate,
-        'location': event.location,
-        'status': 'pending',
-      },
+      request: request,
     );
   }
 
@@ -52,17 +53,19 @@ class OrganizerEventService {
     required String eventId,
     required EventModel event,
   }) async {
+    final request = OrganizerEventCreateRequest(
+      title: event.title,
+      description: event.description,
+      categoryId: event.categoryId ?? '',
+      startDate: event.startDate,
+      endDate: event.endDate,
+      location: event.location,
+      status: 'published',
+    );
+
     return updateEvent(
       eventId: eventId,
-      body: {
-        'title': event.title,
-        'description': event.description,
-        'category_id': event.categoryId,
-        'start_date': event.startDate,
-        'end_date': event.endDate,
-        'location': event.location,
-        'status': 'published',
-      },
+      request: request,
     );
   }
 }

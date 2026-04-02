@@ -4,6 +4,7 @@ import 'package:event_manager_app/core/network/api_client.dart';
 import 'package:event_manager_app/features/events/models/event_model.dart';
 import 'package:event_manager_app/features/events/models/session_model.dart';
 import 'package:event_manager_app/features/events/services/event_service.dart';
+import 'package:event_manager_app/roles/organizer/screens/organizer_event_edit_screen.dart';
 import 'package:event_manager_app/roles/organizer/screens/organizer_session_create_screen.dart';
 import 'package:event_manager_app/roles/organizer/services/organizer_event_service.dart';
 import 'package:event_manager_app/shared/theme/app_colors.dart';
@@ -63,7 +64,22 @@ class _OrganizerEventDetailScreenState
     );
 
     if (!mounted) return;
-    _reload();
+    await _reload();
+  }
+
+  Future<void> _openEditEvent(EventModel event) async {
+    final updated = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => OrganizerEventEditScreen(event: event),
+      ),
+    );
+
+    if (!mounted) return;
+
+    if (updated == true) {
+      await _reload();
+    }
   }
 
   Future<void> _sendToReview(EventModel event) async {
@@ -169,7 +185,7 @@ class _OrganizerEventDetailScreenState
       case 'published':
         return 'Опубликовано';
       case 'needs_edit':
-        return 'Нужна доработка';
+        return 'Требует редактирования';
       case 'completed':
         return 'Завершено';
       default:
@@ -221,29 +237,57 @@ class _OrganizerEventDetailScreenState
       );
     }
 
-    if (event.status == 'draft' || event.status == 'needs_edit') {
-      return SizedBox(
-        width: double.infinity,
-        child: ElevatedButton.icon(
-          onPressed: () => _sendToReview(event),
-          icon: const Icon(Icons.send_rounded),
-          label: const Text('Отправить на проверку'),
-        ),
+    final status = event.status.toLowerCase();
+
+    if (status == 'draft' || status == 'needs_edit') {
+      return Column(
+        children: [
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () => _openEditEvent(event),
+              icon: const Icon(Icons.edit_rounded),
+              label: const Text('Редактировать'),
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () => _sendToReview(event),
+              icon: const Icon(Icons.send_rounded),
+              label: const Text('Отправить на проверку'),
+            ),
+          ),
+        ],
       );
     }
 
-    if (event.status == 'reviewed') {
-      return SizedBox(
-        width: double.infinity,
-        child: ElevatedButton.icon(
-          onPressed: () => _publishEvent(event),
-          icon: const Icon(Icons.public_rounded),
-          label: const Text('Опубликовать'),
-        ),
+    if (status == 'reviewed') {
+      return Column(
+        children: [
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () => _openEditEvent(event),
+              icon: const Icon(Icons.edit_rounded),
+              label: const Text('Редактировать'),
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () => _publishEvent(event),
+              icon: const Icon(Icons.public_rounded),
+              label: const Text('Опубликовать'),
+            ),
+          ),
+        ],
       );
     }
 
-    if (event.status == 'pending') {
+    if (status == 'pending') {
       return Container(
         width: double.infinity,
         padding: const EdgeInsets.all(14),
@@ -262,22 +306,35 @@ class _OrganizerEventDetailScreenState
       );
     }
 
-    if (event.status == 'published') {
-      return Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: const Color(0xFFDFF3E8),
-          borderRadius: BorderRadius.circular(18),
-        ),
-        child: const Text(
-          'Мероприятие уже опубликовано',
-          style: TextStyle(
-            color: Color(0xFF1E7A46),
-            fontWeight: FontWeight.w600,
+    if (status == 'published') {
+      return Column(
+        children: [
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () => _openEditEvent(event),
+              icon: const Icon(Icons.edit_rounded),
+              label: const Text('Редактировать'),
+            ),
           ),
-          textAlign: TextAlign.center,
-        ),
+          const SizedBox(height: 12),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0xFFDFF3E8),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: const Text(
+              'Мероприятие уже опубликовано',
+              style: TextStyle(
+                color: Color(0xFF1E7A46),
+                fontWeight: FontWeight.w600,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ],
       );
     }
 

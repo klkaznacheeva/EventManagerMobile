@@ -1,3 +1,4 @@
+import 'package:event_manager_app/features/auth/screens/role_redirect_screen.dart';
 import 'package:flutter/material.dart';
 
 import 'package:event_manager_app/core/network/api_client.dart';
@@ -70,7 +71,7 @@ class _LoginScreenState extends State<LoginScreen> {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (_) => const MainScreen(),
+          builder: (_) => const RoleRedirectScreen(),
         ),
       );
     } catch (e) {

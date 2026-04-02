@@ -4,6 +4,7 @@ import 'package:event_manager_app/core/network/api_client.dart';
 import 'package:event_manager_app/features/categories/models/category_model.dart';
 import 'package:event_manager_app/features/categories/services/category_service.dart';
 import 'package:event_manager_app/roles/organizer/models/organizer_event_create_request.dart';
+import 'package:event_manager_app/roles/organizer/screens/organizer_event_detail_screen.dart';
 import 'package:event_manager_app/roles/organizer/services/organizer_event_service.dart';
 import 'package:event_manager_app/shared/theme/app_colors.dart';
 
@@ -149,6 +150,7 @@ class _OrganizerEventCreateScreenState
     );
 
     controller.text = _formatForApi(result);
+    setState(() {});
   }
 
   String _formatForApi(DateTime dateTime) {
@@ -157,7 +159,9 @@ class _OrganizerEventCreateScreenState
     final day = dateTime.day.toString().padLeft(2, '0');
     final hour = dateTime.hour.toString().padLeft(2, '0');
     final minute = dateTime.minute.toString().padLeft(2, '0');
-    return '$year-$month-$day' 'T' '$hour:$minute:00';
+    return '$year-$month-$day'
+        'T'
+        '$hour:$minute:00';
   }
 
   String _formatForView(String value) {
@@ -214,7 +218,7 @@ class _OrganizerEventCreateScreenState
         status: _selectedStatus,
       );
 
-      await _organizerEventService.createEvent(request);
+      final createdEvent = await _organizerEventService.createEvent(request);
 
       if (!mounted) return;
 
@@ -224,7 +228,14 @@ class _OrganizerEventCreateScreenState
         ),
       );
 
-      Navigator.pop(context);
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => OrganizerEventDetailScreen(
+            eventId: createdEvent.id,
+          ),
+        ),
+      );
     } catch (e) {
       if (!mounted) return;
 
