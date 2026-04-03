@@ -1,39 +1,89 @@
 import 'package:flutter/material.dart';
-
-import 'package:event_manager_app/roles/admin/screens/admin_review_events_screen.dart';
+import 'package:event_manager_app/roles/admin/screens/admin_profile_screen.dart';  // Импортируем экран профиля
+import 'package:event_manager_app/roles/admin/screens/admin_review_events_screen.dart';  // Экран с мероприятиями на проверке
 import 'package:event_manager_app/shared/theme/app_colors.dart';
 
-class AdminHomeScreen extends StatelessWidget {
+class AdminHomeScreen extends StatefulWidget {
   const AdminHomeScreen({super.key});
+
+  @override
+  State<AdminHomeScreen> createState() => _AdminHomeScreenState();
+}
+
+class _AdminHomeScreenState extends State<AdminHomeScreen> {
+  int _selectedIndex = 0;
+
+  // Навигация по вкладкам
+   List<Widget> _widgetOptions = <Widget>[
+    AdminHomeContent(),  // текущий контент (можно оставить как есть)
+    AdminProfileScreen(),  // экран профиля
+    AdminReviewEventsScreen(),  // экран с мероприятиями на проверке
+  ];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
+      appBar: AppBar(
+        backgroundColor: AppColors.primary,
+        foregroundColor: AppColors.textPrimary,
+        elevation: 0,
+      ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildHeader(),
-              const SizedBox(height: 24),
-              _ActionCard(
-                icon: Icons.fact_check_rounded,
-                title: 'Мероприятия на проверке',
-                subtitle: 'Просмотр, одобрение и возврат на доработку',
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const AdminReviewEventsScreen(),
-                    ),
-                  );
-                },
-              ),
-            ],
+        child: _widgetOptions.elementAt(_selectedIndex),  // переключение между вкладками
+      ),
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _selectedIndex,
+        onTap: (index) {
+          setState(() {
+            _selectedIndex = index;
+          });
+        },
+        selectedItemColor: AppColors.primary,
+        unselectedItemColor: AppColors.textSecondary,
+        items: const <BottomNavigationBarItem>[
+          BottomNavigationBarItem(
+            icon: Icon(Icons.home),
+            label: 'Главная',
           ),
-        ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.person),
+            label: 'Профиль',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.check_circle),
+            label: 'Мероприятия на проверке',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class AdminHomeContent extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildHeader(),
+          const SizedBox(height: 24),
+          _ActionCard(
+            icon: Icons.fact_check_rounded,
+            title: 'Мероприятия на проверке',
+            subtitle: 'Просмотр, одобрение и возврат на доработку',
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const AdminReviewEventsScreen(),
+                ),
+              );
+            },
+          ),
+        ],
       ),
     );
   }

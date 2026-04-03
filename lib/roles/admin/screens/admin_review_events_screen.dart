@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:event_manager_app/core/network/api_client.dart';
 import 'package:event_manager_app/features/events/models/event_model.dart';
+import 'package:event_manager_app/roles/admin/screens/admin_event_detail_screen.dart';
 import 'package:event_manager_app/roles/admin/services/admin_event_service.dart';
 import 'package:event_manager_app/shared/theme/app_colors.dart';
 
@@ -42,6 +43,24 @@ class _AdminReviewEventsScreenState extends State<AdminReviewEventsScreen> {
       return '$day.$month.$year • $hour:$minute';
     } catch (_) {
       return value;
+    }
+  }
+
+  Future<void> _openEventDetail(EventModel event) async {
+    final updated = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AdminEventDetailScreen(
+          eventId: event.id,
+          adminEventService: _adminEventService,
+        ),
+      ),
+    );
+
+    if (!mounted) return;
+
+    if (updated == true) {
+      _reload();
     }
   }
 
@@ -206,7 +225,7 @@ class _AdminReviewEventsScreenState extends State<AdminReviewEventsScreen> {
           ),
           const SizedBox(height: 8),
           const Text(
-            'Одобрите мероприятие или верните его организатору на доработку',
+            'Откройте мероприятие, просмотрите детали и примите решение',
             style: TextStyle(
               color: Color(0xFFE8EEF9),
               fontSize: 14,
@@ -279,6 +298,11 @@ class _AdminReviewEventsScreenState extends State<AdminReviewEventsScreen> {
                     icon: Icons.local_activity_outlined,
                     text: event.categoryName!,
                   ),
+                if (event.organizerName != null && event.organizerName!.isNotEmpty)
+                  _InfoChip(
+                    icon: Icons.person_outline_rounded,
+                    text: event.organizerName!,
+                  ),
               ],
             ),
             const SizedBox(height: 18),
@@ -292,16 +316,17 @@ class _AdminReviewEventsScreenState extends State<AdminReviewEventsScreen> {
                 ),
               )
             else
-              Row(
+              Column(
                 children: [
-                  Expanded(
+                  SizedBox(
+                    width: double.infinity,
                     child: OutlinedButton.icon(
-                      onPressed: () => _rejectEvent(event),
-                      icon: const Icon(Icons.undo_rounded),
-                      label: const Text('На доработку'),
+                      onPressed: () => _openEventDetail(event),
+                      icon: const Icon(Icons.visibility_outlined),
+                      label: const Text('Открыть детали'),
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: const Color(0xFFB23A3A),
-                        side: const BorderSide(color: Color(0xFFE9B1B1)),
+                        foregroundColor: AppColors.primary,
+                        side: const BorderSide(color: AppColors.border),
                         minimumSize: const Size.fromHeight(50),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16),
@@ -309,16 +334,36 @@ class _AdminReviewEventsScreenState extends State<AdminReviewEventsScreen> {
                       ),
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: () => _approveEvent(event),
-                      icon: const Icon(Icons.check_circle_outline_rounded),
-                      label: const Text('Одобрить'),
-                      style: ElevatedButton.styleFrom(
-                        minimumSize: const Size.fromHeight(50),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () => _rejectEvent(event),
+                          icon: const Icon(Icons.undo_rounded),
+                          label: const Text('На доработку'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: const Color(0xFFB23A3A),
+                            side: const BorderSide(color: Color(0xFFE9B1B1)),
+                            minimumSize: const Size.fromHeight(50),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                          ),
+                        ),
                       ),
-                    ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: () => _approveEvent(event),
+                          icon: const Icon(Icons.check_circle_outline_rounded),
+                          label: const Text('Одобрить'),
+                          style: ElevatedButton.styleFrom(
+                            minimumSize: const Size.fromHeight(50),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -476,7 +521,6 @@ class _AdminReviewEventsScreenState extends State<AdminReviewEventsScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Проверка мероприятий'),
         backgroundColor: AppColors.background,
         foregroundColor: AppColors.textPrimary,
         elevation: 0,
@@ -530,11 +574,11 @@ class _InfoChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      constraints: const BoxConstraints(minHeight: 34),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: AppColors.accent.withValues(alpha: 0.45),
-        borderRadius: BorderRadius.circular(14),
+        color: AppColors.inputFill,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -544,14 +588,14 @@ class _InfoChip extends StatelessWidget {
             size: 16,
             color: AppColors.primary,
           ),
-          const SizedBox(width: 6),
+          const SizedBox(width: 8),
           Flexible(
             child: Text(
               text,
-              overflow: TextOverflow.ellipsis,
               style: const TextStyle(
-                fontSize: 12,
+                fontSize: 13,
                 color: AppColors.textPrimary,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ),
