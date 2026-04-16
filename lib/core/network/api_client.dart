@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:event_manager_app/core/config/api_config.dart';
 import 'package:event_manager_app/core/storage/token_storage.dart';
@@ -20,8 +21,7 @@ class ApiClient {
       uri,
       headers: {
         ..._defaultHeaders,
-        if (token != null && token.isNotEmpty)
-          'Authorization': 'Bearer $token',
+        if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
         ...?headers,
       },
     );
@@ -41,8 +41,7 @@ class ApiClient {
       uri,
       headers: {
         ..._defaultHeaders,
-        if (token != null && token.isNotEmpty)
-          'Authorization': 'Bearer $token',
+        if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
         ...?headers,
       },
       body: jsonEncode(body ?? {}),
@@ -63,12 +62,40 @@ class ApiClient {
       uri,
       headers: {
         ..._defaultHeaders,
-        if (token != null && token.isNotEmpty)
-          'Authorization': 'Bearer $token',
+        if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
         ...?headers,
       },
       body: jsonEncode(body ?? {}),
     );
+
+    return _handleResponse(response);
+  }
+
+  Future<Map<String, dynamic>> uploadFile(
+      String endpoint, {
+        required File file,
+        String fieldName = 'file',
+        Map<String, String>? headers,
+      }) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}$endpoint');
+    final token = await TokenStorage.getToken();
+
+    final request = http.MultipartRequest('POST', uri);
+
+    if (token != null && token.isNotEmpty) {
+      request.headers['Authorization'] = 'Bearer $token';
+    }
+
+    if (headers != null) {
+      request.headers.addAll(headers);
+    }
+
+    request.files.add(
+      await http.MultipartFile.fromPath(fieldName, file.path),
+    );
+
+    final streamedResponse = await request.send();
+    final response = await http.Response.fromStream(streamedResponse);
 
     return _handleResponse(response);
   }

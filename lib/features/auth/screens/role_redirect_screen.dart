@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import 'package:event_manager_app/core/network/api_client.dart';
+import 'package:event_manager_app/core/storage/user_mode_storage.dart';
+import 'package:event_manager_app/features/auth/screens/user_mode_select_screen.dart';
 import 'package:event_manager_app/features/profile/services/profile_service.dart';
 import 'package:event_manager_app/roles/admin/screens/admin_home_screen.dart';
 import 'package:event_manager_app/shared/theme/app_colors.dart';
@@ -37,11 +39,28 @@ class _RoleRedirectScreenState extends State<RoleRedirectScreen> {
           ),
               (route) => false,
         );
+        return;
+      }
+
+      final savedMode = await UserModeStorage.getSavedUserMode();
+
+      if (!mounted) return;
+
+      if (savedMode == null) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(
+            builder: (_) => const UserModeSelectScreen(),
+          ),
+              (route) => false,
+        );
       } else {
         Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(
-            builder: (_) => const MainScreen(),
+            builder: (_) => MainScreen(
+              initialUserMode: savedMode,
+            ),
           ),
               (route) => false,
         );
@@ -58,7 +77,7 @@ class _RoleRedirectScreenState extends State<RoleRedirectScreen> {
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(
-          builder: (_) => const MainScreen(),
+          builder: (_) => const UserModeSelectScreen(),
         ),
             (route) => false,
       );

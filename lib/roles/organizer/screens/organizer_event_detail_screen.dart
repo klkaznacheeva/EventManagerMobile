@@ -4,7 +4,10 @@ import 'package:event_manager_app/core/network/api_client.dart';
 import 'package:event_manager_app/features/events/models/event_model.dart';
 import 'package:event_manager_app/features/events/models/session_model.dart';
 import 'package:event_manager_app/features/events/services/event_service.dart';
+import 'package:event_manager_app/features/feedback/models/feedback_summary_model.dart';
+import 'package:event_manager_app/features/feedback/services/feedback_service.dart';
 import 'package:event_manager_app/roles/organizer/screens/organizer_event_edit_screen.dart';
+import 'package:event_manager_app/roles/organizer/screens/organizer_event_feedbacks_screen.dart';
 import 'package:event_manager_app/roles/organizer/screens/organizer_session_create_screen.dart';
 import 'package:event_manager_app/roles/organizer/services/organizer_event_service.dart';
 import 'package:event_manager_app/shared/theme/app_colors.dart';
@@ -26,15 +29,17 @@ class _OrganizerEventDetailScreenState
     extends State<OrganizerEventDetailScreen> {
   late final EventService _eventService;
   late final OrganizerEventService _organizerEventService;
+
   late Future<_OrganizerEventDetailData> _detailFuture;
 
-  bool _isStatusLoading = false;
+  bool _isActionLoading = false;
 
   @override
   void initState() {
     super.initState();
-    _eventService = EventService(ApiClient());
-    _organizerEventService = OrganizerEventService(ApiClient());
+    final apiClient = ApiClient();
+    _eventService = EventService(apiClient);
+    _organizerEventService = OrganizerEventService(apiClient);
     _detailFuture = _loadData();
   }
 
@@ -42,54 +47,108 @@ class _OrganizerEventDetailScreenState
     final event = await _eventService.getEventById(widget.eventId);
     final sessions = await _eventService.getSessionsByEventId(widget.eventId);
 
+    FeedbackSummaryModel summary;
+
+    try {
+      summary =
+      await FeedbackService(ApiClient()).getEventFeedbackSummary(widget.eventId);
+    } catch (_) {
+      summary = FeedbackSummaryModel(
+        eventId: widget.eventId,
+        totalFeedbacks: 0,
+        averageRating: 0,
+        breakdown: const [],
+      );
+    }
+
     return _OrganizerEventDetailData(
       event: event,
       sessions: sessions,
+      summary: summary,
     );
   }
 
-  Future<void> _reload() async {
+  void _reload() {
     setState(() {
       _detailFuture = _loadData();
     });
-    await _detailFuture;
   }
 
-  Future<void> _openCreateSession() async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => OrganizerSessionCreateScreen(eventId: widget.eventId),
-      ),
-    );
-
-    if (!mounted) return;
-    await _reload();
-  }
-
-  Future<void> _openEditEvent(EventModel event) async {
-    final updated = await Navigator.push(
+  Future<void> _openEditScreen(EventModel event) async {
+    final result = await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => OrganizerEventEditScreen(event: event),
       ),
     );
 
-    if (!mounted) return;
-
-    if (updated == true) {
-      await _reload();
+    if (result == true && mounted) {
+      _reload();
     }
+  }
+
+  Future<void> _openCreateSessionScreen() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => OrganizerSessionCreateScreen(eventId: widget.eventId),
+      ),
+    );
+
+    if (result == true && mounted) {
+      _reload();
+      return;
+    }
+
+    if (mounted) {
+      _reload();
+    }
+  }
+
+  Future<void> _openEditSessionScreen(SessionModel session) async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => OrganizerSessionCreateScreen(
+          eventId: widget.eventId,
+          session: session,
+        ),
+      ),
+    );
+
+    if (result == true && mounted) {
+      _reload();
+      return;
+    }
+
+    if (mounted) {
+      _reload();
+    }
+  }
+
+  Future<void> _openFeedbacksScreen(EventModel event) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => OrganizerEventFeedbacksScreen(
+          eventId: event.id,
+          eventTitle: event.title,
+        ),
+      ),
+    );
+
+    if (!mounted) return;
+    _reload();
   }
 
   Future<void> _sendToReview(EventModel event) async {
     setState(() {
-      _isStatusLoading = true;
+      _isActionLoading = true;
     });
 
     try {
       await _organizerEventService.sendToReview(
-        eventId: widget.eventId,
+        eventId: event.id,
         event: event,
       );
 
@@ -101,7 +160,7 @@ class _OrganizerEventDetailScreenState
         ),
       );
 
-      await _reload();
+      _reload();
     } catch (e) {
       if (!mounted) return;
 
@@ -114,21 +173,18 @@ class _OrganizerEventDetailScreenState
       if (!mounted) return;
 
       setState(() {
-        _isStatusLoading = false;
+        _isActionLoading = false;
       });
     }
   }
 
   Future<void> _publishEvent(EventModel event) async {
     setState(() {
-      _isStatusLoading = true;
+      _isActionLoading = true;
     });
 
     try {
-      await _organizerEventService.publishEvent(
-        eventId: widget.eventId,
-        event: event,
-      );
+      await _organizerEventService.publishEvent(eventId: event.id);
 
       if (!mounted) return;
 
@@ -138,7 +194,7 @@ class _OrganizerEventDetailScreenState
         ),
       );
 
-      await _reload();
+      _reload();
     } catch (e) {
       if (!mounted) return;
 
@@ -151,7 +207,7 @@ class _OrganizerEventDetailScreenState
       if (!mounted) return;
 
       setState(() {
-        _isStatusLoading = false;
+        _isActionLoading = false;
       });
     }
   }
@@ -185,7 +241,7 @@ class _OrganizerEventDetailScreenState
       case 'published':
         return 'Опубликовано';
       case 'needs_edit':
-        return 'Требует редактирования';
+        return 'Нужна доработка';
       case 'completed':
         return 'Завершено';
       default:
@@ -227,124 +283,10 @@ class _OrganizerEventDetailScreenState
     }
   }
 
-  Widget _buildStatusAction(EventModel event) {
-    if (_isStatusLoading) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 8),
-        child: CircularProgressIndicator(
-          color: AppColors.primary,
-        ),
-      );
-    }
-
-    final status = event.status.toLowerCase();
-
-    if (status == 'draft' || status == 'needs_edit') {
-      return Column(
-        children: [
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: () => _openEditEvent(event),
-              icon: const Icon(Icons.edit_rounded),
-              label: const Text('Редактировать'),
-            ),
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: () => _sendToReview(event),
-              icon: const Icon(Icons.send_rounded),
-              label: const Text('Отправить на проверку'),
-            ),
-          ),
-        ],
-      );
-    }
-
-    if (status == 'reviewed') {
-      return Column(
-        children: [
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: () => _openEditEvent(event),
-              icon: const Icon(Icons.edit_rounded),
-              label: const Text('Редактировать'),
-            ),
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: () => _publishEvent(event),
-              icon: const Icon(Icons.public_rounded),
-              label: const Text('Опубликовать'),
-            ),
-          ),
-        ],
-      );
-    }
-
-    if (status == 'pending') {
-      return Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: const Color(0xFFFFF4D6),
-          borderRadius: BorderRadius.circular(18),
-        ),
-        child: const Text(
-          'Мероприятие находится на проверке администратора',
-          style: TextStyle(
-            color: Color(0xFF8A6400),
-            fontWeight: FontWeight.w600,
-          ),
-          textAlign: TextAlign.center,
-        ),
-      );
-    }
-
-    if (status == 'published') {
-      return Column(
-        children: [
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: () => _openEditEvent(event),
-              icon: const Icon(Icons.edit_rounded),
-              label: const Text('Редактировать'),
-            ),
-          ),
-          const SizedBox(height: 12),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: const Color(0xFFDFF3E8),
-              borderRadius: BorderRadius.circular(18),
-            ),
-            child: const Text(
-              'Мероприятие уже опубликовано',
-              style: TextStyle(
-                color: Color(0xFF1E7A46),
-                fontWeight: FontWeight.w600,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ),
-        ],
-      );
-    }
-
-    return const SizedBox.shrink();
-  }
-
-  Widget _buildHeader(EventModel event) {
+  Widget _buildTopSection(EventModel event) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 26),
+      padding: const EdgeInsets.fromLTRB(20, 24, 20, 28),
       decoration: const BoxDecoration(
         color: AppColors.primary,
         borderRadius: BorderRadius.vertical(
@@ -354,22 +296,28 @@ class _OrganizerEventDetailScreenState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: _statusBg(event.status),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Text(
-              _statusLabel(event),
-              style: TextStyle(
-                color: _statusFg(event.status),
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Container(
+                padding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: _statusBg(event.status),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Text(
+                  _statusLabel(event),
+                  style: TextStyle(
+                    color: _statusFg(event.status),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
               ),
-            ),
+            ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 18),
           Text(
             event.title,
             style: const TextStyle(
@@ -384,32 +332,28 @@ class _OrganizerEventDetailScreenState
             Text(
               event.description!,
               style: const TextStyle(
-                color: Color(0xFFE8EEF9),
+                color: Color(0xFFEAF0FF),
                 fontSize: 15,
                 height: 1.45,
               ),
             ),
           ],
-          const SizedBox(height: 18),
+          const SizedBox(height: 20),
           Wrap(
             spacing: 10,
             runSpacing: 10,
             children: [
-              _TopChip(
+              _TopInfoChip(
                 icon: Icons.calendar_today_rounded,
                 text: _formatDateTime(event.startDate),
               ),
-              _TopChip(
-                icon: Icons.event_available_rounded,
-                text: _formatDateTime(event.endDate),
-              ),
               if (event.location != null && event.location!.isNotEmpty)
-                _TopChip(
+                _TopInfoChip(
                   icon: Icons.location_on_outlined,
                   text: event.location!,
                 ),
               if (event.categoryName != null && event.categoryName!.isNotEmpty)
-                _TopChip(
+                _TopInfoChip(
                   icon: Icons.local_activity_outlined,
                   text: event.categoryName!,
                 ),
@@ -420,10 +364,93 @@ class _OrganizerEventDetailScreenState
     );
   }
 
+  Widget _buildActionButtons(EventModel event) {
+    final status = event.status.toLowerCase();
+
+    final canEdit = status != 'completed';
+    final canSendToReview = status == 'draft' || status == 'needs_edit';
+    final canPublish = status == 'reviewed';
+    final canAddSession = status != 'completed';
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x12000000),
+            blurRadius: 20,
+            offset: Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Действия',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              if (canEdit)
+                OutlinedButton.icon(
+                  onPressed:
+                  _isActionLoading ? null : () => _openEditScreen(event),
+                  icon: const Icon(Icons.edit_rounded),
+                  label: const Text('Редактировать'),
+                ),
+              if (canSendToReview)
+                ElevatedButton.icon(
+                  onPressed:
+                  _isActionLoading ? null : () => _sendToReview(event),
+                  icon: const Icon(Icons.rate_review_rounded),
+                  label: Text(
+                    _isActionLoading
+                        ? 'Отправка...'
+                        : 'Отправить на проверку',
+                  ),
+                ),
+              if (canPublish)
+                ElevatedButton.icon(
+                  onPressed:
+                  _isActionLoading ? null : () => _publishEvent(event),
+                  icon: const Icon(Icons.public_rounded),
+                  label: Text(
+                    _isActionLoading ? 'Публикация...' : 'Опубликовать',
+                  ),
+                ),
+            ],
+          ),
+          if (!canEdit && !canAddSession && !canSendToReview && !canPublish) ...[
+            const SizedBox(height: 4),
+            const Text(
+              'Для текущего статуса дополнительных действий нет.',
+              style: TextStyle(
+                fontSize: 14,
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   Widget _buildSectionCard({
     required String title,
-    Widget? trailing,
     required Widget child,
+    Widget? trailing,
   }) {
     return Container(
       width: double.infinity,
@@ -506,22 +533,16 @@ class _OrganizerEventDetailScreenState
     );
   }
 
-  Widget _buildSessions(List<SessionModel> sessions) {
+  Widget _buildSessionsSection(
+      List<SessionModel> sessions, {
+        required bool canManageSessions,
+      }) {
     if (sessions.isEmpty) {
-      return Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          color: AppColors.inputFill,
-          borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: AppColors.border),
-        ),
-        child: const Text(
-          'Сессии ещё не добавлены.',
-          style: TextStyle(
-            fontSize: 14,
-            color: AppColors.textSecondary,
-          ),
+      return const Text(
+        'Для этого мероприятия пока нет сессий.',
+        style: TextStyle(
+          fontSize: 14,
+          color: AppColors.textSecondary,
         ),
       );
     }
@@ -535,18 +556,38 @@ class _OrganizerEventDetailScreenState
           decoration: BoxDecoration(
             color: AppColors.inputFill,
             borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: AppColors.border),
+            border: Border.all(
+              color: AppColors.border,
+            ),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                session.title,
-                style: const TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimary,
-                ),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Text(
+                      session.title,
+                      style: const TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ),
+                  if (canManageSessions)
+                    IconButton(
+                      onPressed: _isActionLoading
+                          ? null
+                          : () => _openEditSessionScreen(session),
+                      tooltip: 'Редактировать сессию',
+                      icon: const Icon(
+                        Icons.edit_rounded,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                ],
               ),
               if (session.description != null &&
                   session.description!.isNotEmpty) ...[
@@ -560,31 +601,32 @@ class _OrganizerEventDetailScreenState
                   ),
                 ),
               ],
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
               Wrap(
                 spacing: 10,
                 runSpacing: 10,
                 children: [
-                  _SessionChip(
+                  _SessionInfoChip(
                     icon: Icons.schedule_rounded,
                     text: _formatDateTime(session.startDate),
                   ),
-                  _SessionChip(
-                    icon: Icons.event_available_rounded,
-                    text: _formatDateTime(session.endDate),
-                  ),
+                  if (session.endDate.isNotEmpty)
+                    _SessionInfoChip(
+                      icon: Icons.event_available_rounded,
+                      text: _formatDateTime(session.endDate),
+                    ),
                   if (session.location != null && session.location!.isNotEmpty)
-                    _SessionChip(
+                    _SessionInfoChip(
                       icon: Icons.location_on_outlined,
                       text: session.location!,
                     ),
                   if (session.type != null && session.type!.isNotEmpty)
-                    _SessionChip(
+                    _SessionInfoChip(
                       icon: Icons.sell_outlined,
                       text: session.type!,
                     ),
                   if (session.ageLimit != null)
-                    _SessionChip(
+                    _SessionInfoChip(
                       icon: Icons.person_outline_rounded,
                       text: '${session.ageLimit}+',
                     ),
@@ -594,6 +636,153 @@ class _OrganizerEventDetailScreenState
           ),
         );
       }).toList(),
+    );
+  }
+
+  Widget _buildRatingStars(int rating, {double size = 18}) {
+    return Row(
+      children: List.generate(
+        5,
+            (index) => Icon(
+          index < rating ? Icons.star_rounded : Icons.star_border_rounded,
+          size: size,
+          color: index < rating
+              ? const Color(0xFFF5B301)
+              : AppColors.textSecondary,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFeedbackSummary(FeedbackSummaryModel summary) {
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.inputFill,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: AppColors.border),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Средняя оценка',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      summary.averageRating.toStringAsFixed(1),
+                      style: const TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.inputFill,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: AppColors.border),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Отзывов',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '${summary.totalFeedbacks}',
+                      style: const TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+        if (summary.breakdown.isNotEmpty)
+          Column(
+            children: summary.breakdown.map((item) {
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 22,
+                      child: Text(
+                        '${item.rating}',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    const Icon(
+                      Icons.star_rounded,
+                      size: 16,
+                      color: Color(0xFFF5B301),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(999),
+                        child: LinearProgressIndicator(
+                          value: summary.totalFeedbacks == 0
+                              ? 0
+                              : item.count / summary.totalFeedbacks,
+                          minHeight: 8,
+                          backgroundColor: AppColors.border,
+                          valueColor: const AlwaysStoppedAnimation<Color>(
+                            AppColors.primary,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    SizedBox(
+                      width: 24,
+                      child: Text(
+                        '${item.count}',
+                        textAlign: TextAlign.right,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
+          ),
+      ],
     );
   }
 
@@ -632,7 +821,7 @@ class _OrganizerEventDetailScreenState
               ),
               const SizedBox(height: 16),
               const Text(
-                'Не удалось загрузить мероприятие',
+                'Не удалось загрузить карточку мероприятия',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 18,
@@ -663,42 +852,25 @@ class _OrganizerEventDetailScreenState
   Widget _buildLoadedState(_OrganizerEventDetailData data) {
     final event = data.event;
     final sessions = data.sessions;
+    final summary = data.summary;
 
     return RefreshIndicator(
       color: AppColors.primary,
-      onRefresh: _reload,
+      onRefresh: () async {
+        _reload();
+        await _detailFuture;
+      },
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         children: [
-          _buildHeader(event),
+          _buildTopSection(event),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 18, 16, 24),
             child: Column(
               children: [
-                _buildSectionCard(
-                  title: 'Действия',
-                  child: _buildStatusAction(event),
-                ),
+                _buildActionButtons(event),
                 _buildSectionCard(
                   title: 'Информация о мероприятии',
-                  trailing: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.accent.withValues(alpha: 0.45),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Text(
-                      '${event.participantsCount} участников',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.primary,
-                      ),
-                    ),
-                  ),
                   child: Column(
                     children: [
                       _buildMetaRow(
@@ -724,30 +896,86 @@ class _OrganizerEventDetailScreenState
                           label: 'Категория',
                           value: event.categoryName!,
                         ),
+                      if (event.organizerName != null &&
+                          event.organizerName!.isNotEmpty)
+                        _buildMetaRow(
+                          icon: Icons.person_outline_rounded,
+                          label: 'Организатор',
+                          value: event.organizerName!,
+                        ),
                       _buildMetaRow(
-                        icon: Icons.flag_outlined,
-                        label: 'Статус',
-                        value: _statusLabel(event),
+                        icon: Icons.people_alt_outlined,
+                        label: 'Участники',
+                        value: '${event.participantsCount}',
                       ),
                     ],
                   ),
                 ),
                 _buildSectionCard(
                   title: 'Сессии мероприятия',
-                  trailing: ElevatedButton.icon(
-                    onPressed: _openCreateSession,
-                    icon: const Icon(Icons.add_rounded, size: 18),
+                  trailing: TextButton.icon(
+                    onPressed: _isActionLoading ? null : _openCreateSessionScreen,
+                    icon: const Icon(Icons.add),
                     label: const Text('Добавить'),
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 10,
-                      ),
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
                   ),
-                  child: _buildSessions(sessions),
+                  child: _buildSessionsSection(
+                    sessions,
+                    canManageSessions: event.status.toLowerCase() != 'completed',
+                  ),
+                ),
+                _buildSectionCard(
+                  title: 'Отзывы участников',
+                  trailing: TextButton.icon(
+                    onPressed: () => _openFeedbacksScreen(event),
+                    icon: const Icon(Icons.arrow_forward_rounded),
+                    label: const Text('Открыть все'),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildFeedbackSummary(summary),
+                      const SizedBox(height: 16),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: AppColors.inputFill,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: AppColors.border),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 44,
+                              height: 44,
+                              decoration: BoxDecoration(
+                                color: AppColors.accent.withValues(alpha: 0.5),
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              child: const Icon(
+                                Icons.reviews_rounded,
+                                color: AppColors.primary,
+                              ),
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Text(
+                                summary.totalFeedbacks > 0
+                                    ? 'Всего отзывов: ${summary.totalFeedbacks}. Откройте отдельную страницу для просмотра полного списка.'
+                                    : 'Отзывов пока нет. Когда участники оставят оценки, они будут доступны на отдельной странице.',
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  height: 1.4,
+                                  color: AppColors.textSecondary,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -761,12 +989,6 @@ class _OrganizerEventDetailScreenState
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: const Text('Карточка мероприятия'),
-        backgroundColor: AppColors.background,
-        foregroundColor: AppColors.textPrimary,
-        elevation: 0,
-      ),
       body: FutureBuilder<_OrganizerEventDetailData>(
         future: _detailFuture,
         builder: (context, snapshot) {
@@ -797,18 +1019,20 @@ class _OrganizerEventDetailScreenState
 class _OrganizerEventDetailData {
   final EventModel event;
   final List<SessionModel> sessions;
+  final FeedbackSummaryModel summary;
 
   _OrganizerEventDetailData({
     required this.event,
     required this.sessions,
+    required this.summary,
   });
 }
 
-class _TopChip extends StatelessWidget {
+class _TopInfoChip extends StatelessWidget {
   final IconData icon;
   final String text;
 
-  const _TopChip({
+  const _TopInfoChip({
     required this.icon,
     required this.text,
   });
@@ -847,11 +1071,11 @@ class _TopChip extends StatelessWidget {
   }
 }
 
-class _SessionChip extends StatelessWidget {
+class _SessionInfoChip extends StatelessWidget {
   final IconData icon;
   final String text;
 
-  const _SessionChip({
+  const _SessionInfoChip({
     required this.icon,
     required this.text,
   });
@@ -881,6 +1105,7 @@ class _SessionChip extends StatelessWidget {
               style: const TextStyle(
                 fontSize: 12,
                 color: AppColors.textPrimary,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ),

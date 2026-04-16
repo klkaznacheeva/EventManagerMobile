@@ -2,17 +2,25 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:event_manager_app/features/profile/screens/change_password_screen.dart';
 
 import 'package:event_manager_app/core/network/api_client.dart';
 import 'package:event_manager_app/core/storage/token_storage.dart';
+import 'package:event_manager_app/core/storage/user_mode_storage.dart';
 import 'package:event_manager_app/features/auth/screens/login_screen.dart';
+import 'package:event_manager_app/features/auth/screens/user_mode_select_screen.dart';
 import 'package:event_manager_app/features/profile/models/profile_model.dart';
+import 'package:event_manager_app/features/profile/screens/change_password_screen.dart';
 import 'package:event_manager_app/features/profile/services/profile_service.dart';
 import 'package:event_manager_app/shared/theme/app_colors.dart';
+import 'package:event_manager_app/features/profile/screens/edit_profile_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
-  const ProfileScreen({super.key});
+  final String? currentUserMode;
+
+  const ProfileScreen({
+    super.key,
+    this.currentUserMode,
+  });
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -23,13 +31,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
   late Future<ProfileModel> _profileFuture;
 
   bool _isUploadingAvatar = false;
-  bool _isChangingPassword = false;
+  String? _userMode;
 
   @override
   void initState() {
     super.initState();
     _profileService = ProfileService(ApiClient());
     _profileFuture = _profileService.getProfile();
+    _initUserMode();
+  }
+
+  Future<void> _initUserMode() async {
+    if (widget.currentUserMode != null) {
+      setState(() {
+        _userMode = widget.currentUserMode;
+      });
+      return;
+    }
+
+    final storedMode = await UserModeStorage.getSavedUserMode();
+
+    if (!mounted) return;
+
+    setState(() {
+      _userMode = storedMode ?? UserModeStorage.participantMode;
+    });
   }
 
   void _reload() {
@@ -40,6 +66,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _logout() async {
     await TokenStorage.clearToken();
+    await UserModeStorage.clearUserMode();
 
     if (!mounted) return;
 
@@ -47,6 +74,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
       context,
       MaterialPageRoute(
         builder: (_) => const LoginScreen(),
+      ),
+          (route) => false,
+    );
+  }
+
+  Future<void> _openEditProfile(ProfileModel profile) async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => EditProfileScreen(profile: profile),
+      ),
+    );
+
+    if (result == true && mounted) {
+      _reload();
+    }
+  }
+
+  Future<void> _openModeSelect() async {
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const UserModeSelectScreen(),
       ),
           (route) => false,
     );
@@ -96,8 +146,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-
-
   String _formatBirthDate(String? value) {
     if (value == null || value.isEmpty) {
       return 'Не указана';
@@ -131,6 +179,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
 
     return parts.take(2).map((e) => e[0].toUpperCase()).join();
+  }
+
+  String _modeLabel() {
+    if (_userMode == UserModeStorage.organizerMode) {
+      return 'Организатор';
+    }
+
+    return 'Участник';
   }
 
   Widget _buildAvatar(ProfileModel profile) {
@@ -221,6 +277,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
               height: 1.4,
             ),
           ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: AppColors.accent,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Text(
+              'Текущий режим: ${_modeLabel()}',
+              style: const TextStyle(
+                color: AppColors.primary,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -280,6 +352,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
             value: _formatBirthDate(profile.birthDate),
           ),
           _ProfileRow(
+            icon: Icons.swap_horiz_rounded,
+            label: 'Режим',
+            value: _modeLabel(),
+          ),
+          _ProfileRow(
             icon: Icons.verified_user_outlined,
             label: 'Системный',
             value: profile.isSystem ? 'Да' : 'Нет',
@@ -290,7 +367,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildActions() {
+  Widget _buildActions(ProfileModel profile) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
@@ -307,6 +384,40 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
       child: Column(
         children: [
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () => _openEditProfile(profile),
+              icon: const Icon(Icons.edit_rounded),
+              label: const Text('Редактировать профиль'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.primary,
+                side: const BorderSide(color: AppColors.border),
+                minimumSize: const Size.fromHeight(52),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(18),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: _openModeSelect,
+              icon: const Icon(Icons.swap_horiz_rounded),
+              label: const Text('Сменить режим'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.primary,
+                side: const BorderSide(color: AppColors.border),
+                minimumSize: const Size.fromHeight(52),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(18),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
           SizedBox(
             width: double.infinity,
             child: OutlinedButton.icon(
@@ -439,7 +550,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           const SizedBox(height: 20),
           _buildInfoCard(profile),
           const SizedBox(height: 16),
-          _buildActions(),
+          _buildActions(profile),
         ],
       ),
     );

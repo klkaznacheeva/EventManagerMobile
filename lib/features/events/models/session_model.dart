@@ -1,3 +1,5 @@
+import 'package:event_manager_app/features/events/models/session_file_model.dart';
+
 class SessionModel {
   final String id;
   final String eventId;
@@ -11,6 +13,7 @@ class SessionModel {
   final String? status;
   final String? statusLabel;
   final String? createdAt;
+  final List<SessionFileModel> files;
 
   SessionModel({
     required this.id,
@@ -25,9 +28,12 @@ class SessionModel {
     this.status,
     this.statusLabel,
     this.createdAt,
+    this.files = const [],
   });
 
   factory SessionModel.fromJson(Map<String, dynamic> json) {
+    final filesJson = json['files'];
+
     return SessionModel(
       id: json['id'].toString(),
       eventId: json['event_id']?.toString() ?? '',
@@ -41,6 +47,14 @@ class SessionModel {
       status: json['status']?.toString(),
       statusLabel: json['status_label']?.toString(),
       createdAt: json['created_at']?.toString(),
+      files: filesJson is List
+          ? filesJson
+          .map(
+            (item) =>
+            SessionFileModel.fromJson(item as Map<String, dynamic>),
+      )
+          .toList()
+          : const [],
     );
   }
 }

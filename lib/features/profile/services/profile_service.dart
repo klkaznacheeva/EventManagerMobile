@@ -17,6 +17,29 @@ class ProfileService {
     return ProfileModel.fromJson(response);
   }
 
+  Future<ProfileModel> updateProfile({
+    required String firstName,
+    required String email,
+    String? secondName,
+    String? lastName,
+    String? phone,
+    String? birthDate,
+  }) async {
+    final response = await _apiClient.put(
+      '/api/v1/users/profile',
+      body: {
+        'first_name': firstName,
+        'second_name': secondName,
+        'last_name': lastName,
+        'email': email,
+        'phone': phone,
+        'birth_date': birthDate,
+      },
+    );
+
+    return ProfileModel.fromJson(response);
+  }
+
   Future<void> changePassword({
     required String oldPassword,
     required String newPassword,

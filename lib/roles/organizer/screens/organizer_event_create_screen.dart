@@ -37,8 +37,7 @@ class _OrganizerEventCreateScreenState
 
   final List<Map<String, String>> _statuses = const [
     {'value': 'draft', 'label': 'Черновик'},
-    {'value': 'published', 'label': 'Опубликовано'},
-    {'value': 'cancelled', 'label': 'Отменено'},
+    {'value': 'pending', 'label': 'Сразу на проверку'},
   ];
 
   String _selectedStatus = 'draft';

@@ -51,12 +51,6 @@ class OrganizerHomeScreen extends StatelessWidget {
               ),
 
               const SizedBox(height: 16),
-
-              const _DisabledActionCard(
-                icon: Icons.schedule_rounded,
-                title: 'Сессии мероприятий',
-                subtitle: 'Будет доступно на следующем этапе',
-              ),
             ],
           ),
         ),

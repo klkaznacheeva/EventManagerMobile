@@ -8,8 +8,16 @@ class EventService {
 
   EventService(this._apiClient);
 
-  Future<List<EventModel>> getEvents() async {
-    final response = await _apiClient.get(ApiConfig.events);
+  Future<List<EventModel>> getEvents({
+    String userMode = 'participant',
+  }) async {
+    final response = await _apiClient.get(
+      ApiConfig.events,
+      headers: {
+        'X-User-Mode': userMode,
+      },
+    );
+
     final items = response['items'];
 
     if (items is List) {
@@ -37,5 +45,9 @@ class EventService {
     }
 
     return [];
+  }
+
+  Future<void> joinEvent(String eventId) async {
+    await _apiClient.post('${ApiConfig.events}$eventId/join');
   }
 }

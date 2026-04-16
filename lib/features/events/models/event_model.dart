@@ -1,3 +1,5 @@
+import 'package:event_manager_app/features/events/models/session_model.dart';
+
 class EventModel {
   final String id;
   final String title;
@@ -22,6 +24,9 @@ class EventModel {
   final String createdAt;
   final String? updatedAt;
 
+  final String? bannerUrl;
+  final List<SessionModel> sessions;
+
   EventModel({
     required this.id,
     required this.title,
@@ -39,11 +44,14 @@ class EventModel {
     this.organizerEmail,
     required this.createdAt,
     this.updatedAt,
+    this.bannerUrl,
+    this.sessions = const [],
   });
 
   factory EventModel.fromJson(Map<String, dynamic> json) {
     final category = json['category'] as Map<String, dynamic>?;
     final organizer = json['organizer'] as Map<String, dynamic>?;
+    final sessionsJson = json['sessions'];
 
     final firstName = organizer?['first_name']?.toString();
     final lastName = organizer?['last_name']?.toString();
@@ -73,6 +81,14 @@ class EventModel {
       organizerEmail: organizer?['email']?.toString(),
       createdAt: json['created_at'].toString(),
       updatedAt: json['updated_at']?.toString(),
+      bannerUrl: json['banner_url']?.toString(),
+      sessions: sessionsJson is List
+          ? sessionsJson
+          .map(
+            (item) => SessionModel.fromJson(item as Map<String, dynamic>),
+      )
+          .toList()
+          : const [],
     );
   }
 }

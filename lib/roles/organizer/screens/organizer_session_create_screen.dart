@@ -1,16 +1,19 @@
 import 'package:flutter/material.dart';
 
 import 'package:event_manager_app/core/network/api_client.dart';
+import 'package:event_manager_app/features/events/models/session_model.dart';
 import 'package:event_manager_app/roles/organizer/models/organizer_session_create_request.dart';
 import 'package:event_manager_app/roles/organizer/services/organizer_session_service.dart';
 import 'package:event_manager_app/shared/theme/app_colors.dart';
 
 class OrganizerSessionCreateScreen extends StatefulWidget {
   final String eventId;
+  final SessionModel? session;
 
   const OrganizerSessionCreateScreen({
     super.key,
     required this.eventId,
+    this.session,
   });
 
   @override
@@ -36,17 +39,37 @@ class _OrganizerSessionCreateScreenState
 
   final List<Map<String, String>> _statuses = const [
     {'value': 'draft', 'label': 'Черновик'},
-    {'value': 'reviewed', 'label': 'Проверено'},
-    {'value': 'published', 'label': 'Опубликовано'},
-    {'value': 'cancelled', 'label': 'Отменено'},
+    {'value': 'pending', 'label': 'Сразу на проверку'},
   ];
 
   String _selectedStatus = 'draft';
+
+  bool get _isEditMode => widget.session != null;
 
   @override
   void initState() {
     super.initState();
     _organizerSessionService = OrganizerSessionService(ApiClient());
+    _fillInitialValues();
+  }
+
+  void _fillInitialValues() {
+    final session = widget.session;
+    if (session == null) return;
+
+    _titleController.text = session.title;
+    _descriptionController.text = session.description ?? '';
+    _locationController.text = session.location ?? '';
+    _typeController.text = session.type ?? '';
+    _ageLimitController.text = session.ageLimit?.toString() ?? '';
+    _startDateController.text = session.startDate;
+    _endDateController.text = session.endDate;
+
+    final sessionStatus = session.status;
+    if (sessionStatus != null &&
+        _statuses.any((status) => status['value'] == sessionStatus)) {
+      _selectedStatus = sessionStatus;
+    }
   }
 
   @override
@@ -62,13 +85,13 @@ class _OrganizerSessionCreateScreenState
   }
 
   Future<void> _pickDateTime(TextEditingController controller) async {
-    final now = DateTime.now();
+    final initialDate = _tryParseDate(controller.text) ?? DateTime.now();
 
     final pickedDate = await showDatePicker(
       context: context,
-      initialDate: now,
-      firstDate: DateTime(now.year - 2),
-      lastDate: DateTime(now.year + 10),
+      initialDate: initialDate,
+      firstDate: DateTime(initialDate.year - 2),
+      lastDate: DateTime(initialDate.year + 10),
       helpText: 'Выберите дату',
       cancelText: 'Отмена',
       confirmText: 'ОК',
@@ -91,7 +114,7 @@ class _OrganizerSessionCreateScreenState
 
     final pickedTime = await showTimePicker(
       context: context,
-      initialTime: TimeOfDay.fromDateTime(now),
+      initialTime: TimeOfDay.fromDateTime(initialDate),
       helpText: 'Выберите время',
       cancelText: 'Отмена',
       confirmText: 'ОК',
@@ -120,7 +143,19 @@ class _OrganizerSessionCreateScreenState
       pickedTime.minute,
     );
 
-    controller.text = _formatForApi(result);
+    setState(() {
+      controller.text = _formatForApi(result);
+    });
+  }
+
+  DateTime? _tryParseDate(String value) {
+    if (value.trim().isEmpty) return null;
+
+    try {
+      return DateTime.parse(value).toLocal();
+    } catch (_) {
+      return null;
+    }
   }
 
   String _formatForApi(DateTime dateTime) {
@@ -136,7 +171,7 @@ class _OrganizerSessionCreateScreenState
 
   String _formatForView(String value) {
     try {
-      final date = DateTime.parse(value);
+      final date = DateTime.parse(value).toLocal();
       final day = date.day.toString().padLeft(2, '0');
       final month = date.month.toString().padLeft(2, '0');
       final year = date.year.toString();
@@ -187,23 +222,38 @@ class _OrganizerSessionCreateScreenState
         status: _selectedStatus,
       );
 
-      await _organizerSessionService.createSession(request);
+      if (_isEditMode) {
+        await _organizerSessionService.updateSession(
+          sessionId: widget.session!.id,
+          request: request,
+        );
+      } else {
+        await _organizerSessionService.createSession(request);
+      }
 
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Сессия успешно создана'),
+        SnackBar(
+          content: Text(
+            _isEditMode
+                ? 'Сессия успешно обновлена'
+                : 'Сессия успешно создана',
+          ),
         ),
       );
 
-      Navigator.pop(context);
+      Navigator.pop(context, true);
     } catch (e) {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Ошибка создания сессии: $e'),
+          content: Text(
+            _isEditMode
+                ? 'Ошибка обновления сессии: $e'
+                : 'Ошибка создания сессии: $e',
+          ),
         ),
       );
     } finally {
@@ -233,25 +283,29 @@ class _OrganizerSessionCreateScreenState
               color: AppColors.accent,
               borderRadius: BorderRadius.circular(16),
             ),
-            child: const Icon(
-              Icons.add_to_photos_rounded,
+            child: Icon(
+              _isEditMode
+                  ? Icons.edit_note_rounded
+                  : Icons.add_to_photos_rounded,
               color: AppColors.primary,
               size: 28,
             ),
           ),
           const SizedBox(height: 18),
-          const Text(
-            'Новая сессия',
-            style: TextStyle(
+          Text(
+            _isEditMode ? 'Редактирование сессии' : 'Новая сессия',
+            style: const TextStyle(
               color: Colors.white,
               fontSize: 28,
               fontWeight: FontWeight.w700,
             ),
           ),
           const SizedBox(height: 8),
-          const Text(
-            'Добавьте новую сессию в программу мероприятия',
-            style: TextStyle(
+          Text(
+            _isEditMode
+                ? 'Измените данные уже созданной сессии'
+                : 'Добавьте новую сессию в программу мероприятия',
+            style: const TextStyle(
               color: Color(0xFFE8EEF9),
               fontSize: 14,
               height: 1.4,
@@ -411,9 +465,9 @@ class _OrganizerSessionCreateScreenState
                   color: Colors.white,
                 ),
               )
-                  : const Text(
-                'Создать сессию',
-                style: TextStyle(
+                  : Text(
+                _isEditMode ? 'Сохранить изменения' : 'Создать сессию',
+                style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
                 ),
@@ -430,7 +484,7 @@ class _OrganizerSessionCreateScreenState
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Создание сессии'),
+        title: Text(_isEditMode ? 'Редактирование сессии' : 'Создание сессии'),
         backgroundColor: AppColors.background,
         foregroundColor: AppColors.textPrimary,
         elevation: 0,

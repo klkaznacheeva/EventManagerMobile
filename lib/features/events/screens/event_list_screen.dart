@@ -7,7 +7,12 @@ import 'package:event_manager_app/features/events/services/event_service.dart';
 import 'package:event_manager_app/shared/theme/app_colors.dart';
 
 class EventListScreen extends StatefulWidget {
-  const EventListScreen({super.key});
+  final String userMode;
+
+  const EventListScreen({
+    super.key,
+    this.userMode = 'participant',
+  });
 
   @override
   State<EventListScreen> createState() => _EventListScreenState();
@@ -24,7 +29,18 @@ class _EventListScreenState extends State<EventListScreen> {
   void initState() {
     super.initState();
     _eventService = EventService(ApiClient());
-    _eventsFuture = _eventService.getEvents();
+    _eventsFuture = _eventService.getEvents(
+      userMode: widget.userMode,
+    );
+  }
+
+  @override
+  void didUpdateWidget(covariant EventListScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    if (oldWidget.userMode != widget.userMode) {
+      _reloadEvents();
+    }
   }
 
   @override
@@ -35,7 +51,9 @@ class _EventListScreenState extends State<EventListScreen> {
 
   void _reloadEvents() {
     setState(() {
-      _eventsFuture = _eventService.getEvents();
+      _eventsFuture = _eventService.getEvents(
+        userMode: widget.userMode,
+      );
     });
   }
 
@@ -99,22 +117,26 @@ class _EventListScreenState extends State<EventListScreen> {
             ),
           ),
           const SizedBox(width: 14),
-          const Expanded(
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Мероприятия',
-                  style: TextStyle(
+                  widget.userMode == 'organizer'
+                      ? 'Мои мероприятия'
+                      : 'Мероприятия',
+                  style: const TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.w700,
                     color: AppColors.textPrimary,
                   ),
                 ),
-                SizedBox(height: 4),
+                const SizedBox(height: 4),
                 Text(
-                  'Актуальные культурно-массовые события',
-                  style: TextStyle(
+                  widget.userMode == 'organizer'
+                      ? 'Список созданных вами мероприятий'
+                      : 'Актуальные культурно-массовые события',
+                  style: const TextStyle(
                     fontSize: 14,
                     color: AppColors.textSecondary,
                   ),
@@ -260,15 +282,6 @@ class _EventListScreenState extends State<EventListScreen> {
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: _reloadEvents,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                  ),
                   child: const Text('Повторить'),
                 ),
               ),
@@ -279,12 +292,12 @@ class _EventListScreenState extends State<EventListScreen> {
     );
   }
 
-  Widget _buildEmptyState({bool isSearch = false}) {
+  Widget _buildEmptyState() {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
         child: Container(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
             color: AppColors.surface,
             borderRadius: BorderRadius.circular(24),
@@ -299,65 +312,31 @@ class _EventListScreenState extends State<EventListScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                width: 64,
-                height: 64,
-                decoration: BoxDecoration(
-                  color: AppColors.accent.withValues(alpha: 0.45),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Icon(
-                  isSearch
-                      ? Icons.search_off_rounded
-                      : Icons.event_busy_rounded,
-                  color: AppColors.primary,
-                  size: 32,
-                ),
+              const Icon(
+                Icons.event_busy_outlined,
+                size: 42,
+                color: AppColors.primary,
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 14),
               Text(
-                isSearch
-                    ? 'Ничего не найдено'
-                    : 'Мероприятий пока нет',
-                textAlign: TextAlign.center,
+                widget.userMode == 'organizer'
+                    ? 'Мероприятий пока нет'
+                    : 'Мероприятия не найдены',
                 style: const TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w700,
                   color: AppColors.textPrimary,
                 ),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
               Text(
-                isSearch
-                    ? 'Попробуйте изменить поисковый запрос'
-                    : 'Попробуйте обновить список позже',
+                widget.userMode == 'organizer'
+                    ? 'Созданные вами мероприятия появятся здесь.'
+                    : 'Попробуйте изменить поисковый запрос или обновить список.',
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                   fontSize: 14,
                   color: AppColors.textSecondary,
-                ),
-              ),
-              const SizedBox(height: 18),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton(
-                  onPressed: isSearch
-                      ? () {
-                    _searchController.clear();
-                    setState(() {
-                      _searchQuery = '';
-                    });
-                  }
-                      : _reloadEvents,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.primary,
-                    side: const BorderSide(color: AppColors.border),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                  ),
-                  child: Text(isSearch ? 'Сбросить поиск' : 'Обновить'),
                 ),
               ),
             ],
@@ -370,13 +349,16 @@ class _EventListScreenState extends State<EventListScreen> {
   Widget _buildEventCard(EventModel event) {
     return InkWell(
       borderRadius: BorderRadius.circular(24),
-      onTap: () {
-        Navigator.push(
+      onTap: () async {
+        await Navigator.push(
           context,
           MaterialPageRoute(
             builder: (_) => EventDetailScreen(eventId: event.id),
           ),
         );
+
+        if (!mounted) return;
+        _reloadEvents();
       },
       child: Container(
         margin: const EdgeInsets.only(bottom: 16),
@@ -385,9 +367,9 @@ class _EventListScreenState extends State<EventListScreen> {
           borderRadius: BorderRadius.circular(24),
           boxShadow: const [
             BoxShadow(
-              color: Color(0x11000000),
-              blurRadius: 18,
-              offset: Offset(0, 8),
+              color: Color(0x12000000),
+              blurRadius: 20,
+              offset: Offset(0, 10),
             ),
           ],
         ),
@@ -399,62 +381,85 @@ class _EventListScreenState extends State<EventListScreen> {
               Text(
                 event.title,
                 style: const TextStyle(
-                  fontSize: 21,
+                  fontSize: 20,
                   fontWeight: FontWeight.w700,
                   color: AppColors.textPrimary,
                 ),
               ),
               if (event.description != null && event.description!.isNotEmpty) ...[
-                const SizedBox(height: 12),
+                const SizedBox(height: 10),
                 Text(
                   event.description!,
                   maxLines: 3,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     fontSize: 14,
-                    height: 1.45,
+                    height: 1.4,
                     color: AppColors.textSecondary,
                   ),
                 ),
               ],
-              const SizedBox(height: 16),
+              const SizedBox(height: 14),
               Wrap(
                 spacing: 10,
                 runSpacing: 10,
                 children: [
-                  _InfoChip(
-                    icon: Icons.calendar_today_rounded,
+                  _EventInfoChip(
+                    icon: Icons.schedule_rounded,
                     text: _formatDate(event.startDate),
                   ),
                   if (event.location != null && event.location!.isNotEmpty)
-                    _InfoChip(
+                    _EventInfoChip(
                       icon: Icons.location_on_outlined,
                       text: event.location!,
                     ),
                   if (event.categoryName != null && event.categoryName!.isNotEmpty)
-                    _InfoChip(
+                    _EventInfoChip(
                       icon: Icons.local_activity_outlined,
                       text: event.categoryName!,
                     ),
                 ],
               ),
               const SizedBox(height: 16),
-              const Row(
-                mainAxisAlignment: MainAxisAlignment.end,
+              Row(
                 children: [
-                  Text(
-                    'Подробнее',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.primary,
+                  const Icon(
+                    Icons.people_alt_outlined,
+                    size: 18,
+                    color: AppColors.primary,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Участников: ${event.participantsCount}',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                      ),
                     ),
                   ),
-                  SizedBox(width: 6),
-                  Icon(
-                    Icons.arrow_forward_ios_rounded,
-                    size: 14,
-                    color: AppColors.primary,
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: event.isParticipant
+                          ? const Color(0xFFDFF3E8)
+                          : AppColors.accent.withValues(alpha: 0.55),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Text(
+                      event.isParticipant ? 'Вы записаны' : 'Открыто',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: event.isParticipant
+                            ? const Color(0xFF1E7A46)
+                            : AppColors.primary,
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -466,25 +471,27 @@ class _EventListScreenState extends State<EventListScreen> {
   }
 
   Widget _buildContent(List<EventModel> events) {
-    final filteredEvents = _filterEvents(events);
+    final filtered = _filterEvents(events);
 
-    if (filteredEvents.isEmpty) {
-      return _buildEmptyState(isSearch: _searchQuery.trim().isNotEmpty);
-    }
-
-    return RefreshIndicator(
-      color: AppColors.primary,
-      onRefresh: () async {
-        _reloadEvents();
-        await _eventsFuture;
-      },
-      child: ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-        children: [
-          ...filteredEvents.map(_buildEventCard),
-        ],
-      ),
+    return Column(
+      children: [
+        _buildSearchField(),
+        Expanded(
+          child: filtered.isEmpty
+              ? _buildEmptyState()
+              : RefreshIndicator(
+            color: AppColors.primary,
+            onRefresh: () async => _reloadEvents(),
+            child: ListView.builder(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+              itemCount: filtered.length,
+              itemBuilder: (context, index) {
+                return _buildEventCard(filtered[index]);
+              },
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -492,49 +499,41 @@ class _EventListScreenState extends State<EventListScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: SafeArea(
-        child: Column(
-          children: [
-            _buildHeader(),
-            _buildSearchField(),
-            Expanded(
-              child: FutureBuilder<List<EventModel>>(
-                future: _eventsFuture,
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(
-                      child: CircularProgressIndicator(
-                        color: AppColors.primary,
-                      ),
-                    );
-                  }
+      body: Column(
+        children: [
+          _buildHeader(),
+          Expanded(
+            child: FutureBuilder<List<EventModel>>(
+              future: _eventsFuture,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(
+                    child: CircularProgressIndicator(
+                      color: AppColors.primary,
+                    ),
+                  );
+                }
 
-                  if (snapshot.hasError) {
-                    return _buildErrorState(snapshot.error!);
-                  }
+                if (snapshot.hasError) {
+                  return _buildErrorState(snapshot.error!);
+                }
 
-                  final events = snapshot.data ?? [];
-
-                  if (events.isEmpty) {
-                    return _buildEmptyState();
-                  }
-
-                  return _buildContent(events);
-                },
-              ),
+                final events = snapshot.data ?? [];
+                return _buildContent(events);
+              },
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 }
 
-class _InfoChip extends StatelessWidget {
+class _EventInfoChip extends StatelessWidget {
   final IconData icon;
   final String text;
 
-  const _InfoChip({
+  const _EventInfoChip({
     required this.icon,
     required this.text,
   });
@@ -545,8 +544,11 @@ class _InfoChip extends StatelessWidget {
       constraints: const BoxConstraints(minHeight: 34),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: AppColors.accent.withValues(alpha: 0.45),
+        color: AppColors.inputFill,
         borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: AppColors.border,
+        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,

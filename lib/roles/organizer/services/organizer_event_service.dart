@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:event_manager_app/core/config/api_config.dart';
 import 'package:event_manager_app/core/network/api_client.dart';
 import 'package:event_manager_app/features/events/models/event_model.dart';
@@ -49,23 +51,19 @@ class OrganizerEventService {
     );
   }
 
-  Future<EventModel> publishEvent({
+  Future<void> publishEvent({
     required String eventId,
-    required EventModel event,
   }) async {
-    final request = OrganizerEventCreateRequest(
-      title: event.title,
-      description: event.description,
-      categoryId: event.categoryId ?? '',
-      startDate: event.startDate,
-      endDate: event.endDate,
-      location: event.location,
-      status: 'published',
-    );
+    await _apiClient.post('/api/v1/events/$eventId/publish');
+  }
 
-    return updateEvent(
-      eventId: eventId,
-      request: request,
+  Future<void> uploadEventBanner({
+    required String eventId,
+    required File file,
+  }) async {
+    await _apiClient.uploadFile(
+      '/api/v1/events/$eventId/upload-banner',
+      file: file,
     );
   }
 }
